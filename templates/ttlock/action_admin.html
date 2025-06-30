@@ -1,0 +1,145 @@
+[#if VIEW_MODE="search_ttlock_devices" || VIEW_MODE=""#]
+<div class="row">
+	<div class="col-md-2">
+		<!--# Кнопка 'Настройки'. #-->
+		<a class="btn btn-default" href="#api_settings" data-toggle="collapse"><i class="glyphicon glyphicon-cog"></i> <#LANG_SETUP#></a>
+	</div>
+	<div class="col-md-9">	
+		<img align="middle" src="../templates/ttlock/ttlock_logo.png" height="40">
+	</div>
+	<!--# Кнопка 'Справка'. #-->
+	<div class="col-md-1">
+		<a href="?view_mode=show_help" class="btn btn-default btn-sm float-right" title="Справка"><i class="glyphicon glyphicon-question-sign"></i></a>
+	</div>
+</div>
+[#else#]
+<a href="?view_mode=show_help" class="btn btn-default btn-sm float-right" title="Справка"><i class="glyphicon glyphicon-question-sign"></i></a>
+[#if ERR#]
+<a class="btn btn-default" href="#api_settings" data-toggle="collapse"><i class="glyphicon glyphicon-cog"></i></a>
+<div class="alert alert-danger">[#ERR#]</div>
+[#endif ERR#]
+[#endif VIEW_MODE#]
+<div class="collapse[#if ERR#] show[#endif ERR#]" id='api_settings'>
+&nbsp;
+<form action="?" method="post" enctype="multipart/form-data" name="frmEdit" class="form-horizontal">
+<fieldset>
+		<div class="form-group">
+				<label for="title" class="col-lg-1 control-label">
+				client_id:
+				</label>
+				<div class="col-lg-2"><input class="form-control" id="client_id" name="client_id" value="[#CLIENT_ID#]" type="text" class="input"></div>
+				<a href="?view_mode=show_help">Смотри справку</a>
+				<div class="clearfix hidden-xs hidden-sm"></div>  
+				<label for="title" class="col-lg-1 control-label">
+				client_secret:
+				</label>
+				<div class="col-lg-2"><input class="form-control" id="client_secret" name="client_secret" value="[#CLIENT_SECRET#]" type="text" class="input"></div>
+				<div class="clearfix hidden-xs hidden-sm"></div>  
+				[#if UID!=''#]
+				<label for="title" class="col-lg-1 control-label">
+				token:
+				</label>				
+				&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+				[#TOKEN#]
+				<div class="clearfix hidden-xs hidden-sm"></div> 
+				<label for="title" class="col-lg-1 control-label">
+				refresh_token:
+				</label>
+				&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+				[#REFRESH_TOKEN#]
+				<div class="clearfix hidden-xs hidden-sm"></div> 
+				[#else UID#]
+				<label for="title" class="col-lg-1 control-label">
+				Имя пользователя TTLock:
+				</label>
+				<div class="col-lg-2"><input class="form-control" id="username" name="username" value="" type="text" class="input"></div>
+				<div class="clearfix hidden-xs hidden-sm"></div>  
+				<label for="title" class="col-lg-1 control-label">
+				Пароль TTLock:
+				</label>
+				<div class="col-lg-2"><input class="form-control" id="password" name="password" value="" type="password" class="input"></div>
+				<div class="clearfix hidden-xs hidden-sm"></div>  
+				[#endif UID#]
+				<label for="title" class="col-lg-1 control-label">
+				<span class='text' data-toggle="tooltip" title="Запись в отдельный лог-файл YYYY-mm-dd_ttlock.log.">Отладка  DebMes</span>
+				</label>
+				<div class="col-lg-2">
+                <input type="checkbox" name="log_debmes" value="1"[#if LOG_DEBMES="1"#] checked[#endif#]> 
+			    </div>
+				</div>
+<div class="form-actions">
+<button type="submit" name="subm" value="Submit" class="btn btn-primary"><#LANG_UPDATE#></button>
+<input type="hidden" name="view_mode" value="update_settings">
+<input type="hidden" name="mode" value="update">
+[#if UID!=''#]
+<button type="submit" name="change" value="change_settings" class="btn btn-primary">Изменить</button>
+[#endif UID#]
+</div>
+</fieldset>
+</form>
+</div>
+ <!-- action usual -->
+ [#if DATA_SOURCE="ttlock_devices" || DATA_SOURCE=""#]
+ <!-- table ttlock_devices search -->
+ [#if VIEW_MODE="search_ttlock_devices" || VIEW_MODE=""#]
+  [#inc ttlock_devices_search_admin.html#]
+ [#endif VIEW_MODE#]
+ <!-- / table ttlock_devices search -->
+ <!-- table ttlock_devices edit -->
+ [#if VIEW_MODE="edit_ttlock_devices"#]
+   [#if ID!=""#]
+   [#if TITLE!=""#]<h4>[#TITLE#]</h4>[#endif TITLE#]
+<ul class="nav nav-tabs">
+  <li[#if TAB=""#] class="active"[#endif#]>
+   <a href="?data_source=<#DATA_SOURCE#>&view_mode=<#VIEW_MODE#>&id=<#ID#>&tab="><#LANG_MARKET_CATEGORY_INFORMATION#></a>
+  </li>
+  <li[#if TAB="data"#] class="active"[#endif#]>
+   <a href="?data_source=<#DATA_SOURCE#>&view_mode=<#VIEW_MODE#>&id=<#ID#>&tab=data"><#LANG_DATA#></a>
+  </li>
+  <li[#if TAB="commands"#] class="active"[#endif#]>
+   <a href="?data_source=<#DATA_SOURCE#>&view_mode=<#VIEW_MODE#>&id=<#ID#>&tab=commands"><#LANG_COMMANDS#></a>
+  </li>
+</ul>
+&nbsp;<br/>
+   [#endif ID#]
+   [#if TAB=""#]
+    [#inc ttlock_devices_edit_default.html#]
+   [#endif TAB#]
+   [#if TAB="data"#]
+    [#inc ttlock_devices_edit_data.html#]
+   [#endif TAB#]
+   [#if TAB="commands"#]
+    [#inc ttlock_devices_edit_commands.html#]
+   [#endif TAB#]
+ [#endif VIEW_MODE#]
+ <!-- / table ttlock_devices edit -->
+ <!-- table ttlock_devices view --> 
+ [#if VIEW_MODE="view_ttlock_devices"#]
+   [#if TAB=""#]
+    [#inc ttlock_devices_view_default.html#]
+   [#endif TAB#]
+ [#endif VIEW_MODE#]
+ <!-- / table ttlock_devices view -->
+   <!--# Справка по модулю. #-->
+[#if VIEW_MODE="show_help"#]
+   [#inc ./help_ru.html#] 
+[#endif#]
+ [#endif DATA_SOURCE#]
+ <!-- action usual -->
+ [#if DATA_SOURCE="ttlock_info"#]
+ <!-- table ttlock_info search -->
+ [#if VIEW_MODE="search_ttlock_info" || VIEW_MODE=""#]
+  [#inc ttlock_info_search_admin.html#]
+ [#endif VIEW_MODE#]
+ <!-- / table ttlock_info search -->
+ <!-- table ttlock_info edit -->
+ [#if VIEW_MODE="edit_ttlock_info"#]
+   [#inc ttlock_info_edit.html#]
+ [#endif VIEW_MODE#]
+ <!-- / table ttlock_info edit -->
+ <!-- table ttlock_info view --> 
+ [#if VIEW_MODE="view_ttlock_info"#]
+   [#inc ttlock_info_view.html#]
+ [#endif VIEW_MODE#]
+ <!-- / table ttlock_info view -->
+ [#endif DATA_SOURCE#]

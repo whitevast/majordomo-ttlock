@@ -1,0 +1,33 @@
+
+<!-- Table 'pandora_devices' edit -->
+<form action="?" method="post" enctype="multipart/form-data" name="frmEdit" class="form-horizontal">
+[#if OK#]
+<div class="alert alert-success">Данные обновлены</div>
+[#endif OK#]
+[#if ERR#]
+<div class="alert alert-danger">[#ERR#]</div>
+[#endif ERR#]
+[#if ID=""#]
+<legend><#LANG_NEW_RECORD#></legend>
+[#endif ID#]
+<div class="clearfix hidden-xs hidden-sm"></div>
+<div class="col-lg-6">
+<div class="col-lg-4">
+ <b><#LANG_TITLE#>:</b> [#TITLE#]<br>
+ <b>Модель:</b> [#MODEL#]</br>
+ <b>Заряд батареи:</b> [#BAT#]%</br>
+ <b>MAC адрес:</b> [#MAC#]
+ <b>Подключен к шлюзу:</b> [#if GATE==1#] Да [#else#] Нет [#endif GATE#]
+ <div class="form-group">
+	<div class="col-lg-offset-2 col-lg-4">
+	<button type="submit" name="update" value="Update" class="btn btn-primary"><#LANG_UPDATE#></button>
+	<input type="hidden" name="id" value="<#ID#>">
+	<input type="hidden" name="view_mode" value="<#VIEW_MODE#>">
+	<input type="hidden" name="edit_mode" value="<#EDIT_MODE#>">
+	<input type="hidden" name="mode" value="update">
+	<input type="hidden" name="data_source" value="<#DATA_SOURCE#>">
+	<input type="hidden" name="tab" value="<#TAB#>">
+	</div>
+</div>
+</div>
+</div>
