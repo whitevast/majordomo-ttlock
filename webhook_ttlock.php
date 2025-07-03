@@ -1,7 +1,7 @@
 <?php
 include_once("./config.php");
 include_once("./lib/loader.php");
-include_once("./lib/threads.php");
+include_once("./load_settings.php");
 include_once("./modules/ttlock/ttlock.class.php");
 $ttlock_module = new ttlock();
 $ttlock_module->getConfig();

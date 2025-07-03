@@ -1,5 +1,5 @@
 
-<!-- Table 'pandora_devices' edit -->
+<!-- Table 'ttlock_devices' edit -->
 <form action="?" method="post" enctype="multipart/form-data" name="frmEdit" class="form-horizontal">
 [#if OK#]
 <div class="alert alert-success">Данные обновлены</div>
@@ -12,12 +12,13 @@
 [#endif ID#]
 <div class="clearfix hidden-xs hidden-sm"></div>
 <div class="col-lg-6">
-<div class="col-lg-4">
  <b><#LANG_TITLE#>:</b> [#TITLE#]<br>
  <b>Модель:</b> [#MODEL#]</br>
  <b>Заряд батареи:</b> [#BAT#]%</br>
- <b>MAC адрес:</b> [#MAC#]
- <b>Подключен к шлюзу:</b> [#if GATE==1#] Да [#else#] Нет [#endif GATE#]
+ <b>MAC адрес:</b> [#MAC#]</br>
+ <b>Время автозакрытия:</b> [#AUTOLOCK#] сек.</br>
+ <b>Свободный проход:</b> [#if PASSAGE==1#] [#PASS_SHED#] [#else#] Отключен [#endif PASSAGE#]</br>
+ <b>Подключен к шлюзу:</b> [#if GATE==1#] Да [#else#] Нет [#endif GATE#]</br></br>
  <div class="form-group">
 	<div class="col-lg-offset-2 col-lg-4">
 	<button type="submit" name="update" value="Update" class="btn btn-primary"><#LANG_UPDATE#></button>
@@ -28,6 +29,5 @@
 	<input type="hidden" name="data_source" value="<#DATA_SOURCE#>">
 	<input type="hidden" name="tab" value="<#TAB#>">
 	</div>
-</div>
 </div>
 </div>

@@ -146,30 +146,34 @@ function admin(&$out) {
 		if(!isset($out['ERR'])){
 		$this->saveConfig();
 		// Запрашиваем информацию о замках
-		$lock['CLIENT_ID'] = $this->config['CLIENT_ID'];
-		$lock['TOKEN']=$this->config['TOKEN'];
 		$data = $this->send($this->config, 2);
 		foreach($data['list'] as $locks){
 			$lock['LOCK_ID'] = $locks['lockId'];
 			$table_name = 'ttlock_devices';
 			$device=SQLSelectOne("SELECT * FROM $table_name WHERE LOCK_ID='".$lock['LOCK_ID']."'");
-			$datalock = $this->send($lock, 3);
-			if($datalock){
-				if(isset($data['errcode'])){
-					$out['ERR'] = $data['errmsg'];
-				} else {
-					$datalock = $this->send($lock, 3);
-					$device['TITLE'] = $datalock['lockAlias'];
-					$device['MODEL'] = $datalock['modelNum'];
-					$device['LOCK_ID'] = $datalock['lockId'];
-					$device['MAC'] = $datalock['lockMac'];
-					$device['BAT'] = $datalock['electricQuantity'];
-					$device['GATE'] = $datalock['hasGateway'];
-				}
-			} else $out['ERR'] = "Нет ответа от сервера.";
 			if (isset($device['ID'])) {
-				SQLUpdate($table_name, $device); // update
+				$ans = $this->update($lock);
+				if($ans != true) $out['ERR'] = $ans;
 			} else {
+				$datalock = $this->send($lock, 3);
+				if($datalock){
+					if(isset($data['errcode'])){
+						$out['ERR'] = $data['errmsg'];
+					} else {
+						$datalock = $this->send($lock, 3);
+						$device['TITLE'] = $datalock['lockAlias'];
+						$device['MODEL'] = $datalock['modelNum'];
+						$device['LOCK_ID'] = $datalock['lockId'];
+						$device['MAC'] = $datalock['lockMac'];
+						$device['BAT'] = $datalock['electricQuantity'];
+						$device['GATE'] = $datalock['hasGateway'];
+						$device['AUTOLOCK'] = $datalock['autoLockTime'];
+						if($datalock['passageMode'] == 1){
+							$device['PASSAGE'] = 1;
+							$device['PASSAGE_SHED'] = json_encode($this->send($lock, 7))['cyclicCinfig'][0];
+						} else $device['PASSAGE'] = 0;
+					}
+				} else $out['ERR'] = "Нет ответа от сервера.";
 				$device['ID']=SQLInsert($table_name, $device); // adding new record
 				//Заполняем таблицу информации
 				$info = [['electricQuantity','Заряд батареи'],
@@ -177,7 +181,8 @@ function admin(&$out) {
 				['recordType','recordType'],
 				['success','success'],
 				['keyboardPwd','keyboardPwd'],
-				['username','Имя пользователя']];
+				['username','Имя пользователя'],
+				['status','Статус']];
 				$code['DEVICE_ID'] = $device['ID'];
 				for ($i=0; $i<count($info); $i++){
 					$code['TITLE'] = $info[$i][0];
@@ -242,6 +247,24 @@ function admin(&$out) {
 */
 function usual(&$out) {
  $this->admin($out);
+}
+
+function api($params) {
+    $id = $params['id'];
+    $device = SQLSelectOne('SELECT * FROM ttlock_devices WHERE ID="'.$id.'"');
+    if (!isset($device['ID'])) return false;
+	$action = $params['action'];
+	if ($action == 'updateStatus'){
+		$status = $params['data'];
+		$inf = SQLSelectOne("SELECT * FROM ttlock_info WHERE DEVICE_ID='".$device['ID']."' AND TITLE='status'");
+		$param['OLD_VALUE'] = $inf['VALUE'];
+		$param['NEW_VALUE'] = $status;
+		$this->setProperty($inf, $status, $param);
+		$inf['VALUE'] = $status;
+		$inf['UPDATED'] = date('Y-m-d H:i:s');
+		SQLUpdate('ttlock_info', $inf);
+	}
+	else if ($action == 'update') $this->update(array('LOCK_ID'=>$id));
 }
 /**
 * ttlock_devices search
@@ -336,6 +359,18 @@ function setProperty($device, $value, $params = ''){
 	 callMethodSafe($device['LINKED_OBJECT'] . '.' . $device['LINKED_METHOD'], $params);
     }
 }
+// Подписка на события
+ function processSubscription($event, $details=''){
+	 $this->getConfig();
+	 if($event == 'HOURLY'){
+		 if(date('H') == '00' and date('i') == '00' ){
+			 $devices = SQLSelect("SELECT * FROM ttlock_devices");
+			 foreach($devices as $device){
+				 $this->update($device);
+			 }
+		 }
+	 }
+ }
 
 // Глобальный поиск по модулю
  function findData($data) {
@@ -368,6 +403,7 @@ function setProperty($device, $value, $params = ''){
 * @access private
 */
  function install($data='') {
+  subscribeToEvent($this->name, 'HOURLY');
   parent::install();
  }
 /**
@@ -378,6 +414,7 @@ function setProperty($device, $value, $params = ''){
 * @access public
 */
  function uninstall() {
+  unsubscribeFromEvent($this->name, 'HOURLY');
   $id = SQLSelect('SELECT ID FROM ttlock_devices');
   for($i=0; $i<count($id); $i++){
 	$this->delete_ttlock_devices($id[$i]['ID']);
@@ -404,6 +441,9 @@ function setProperty($device, $value, $params = ''){
  ttlock_devices: MAC varchar(20) NOT NULL DEFAULT ''
  ttlock_devices: BAT varchar(20) NOT NULL DEFAULT ''
  ttlock_devices: GATE int(10) NOT NULL DEFAULT '0'
+ ttlock_devices: PASSAGE int(10) NOT NULL DEFAULT '0'
+ ttlock_devices: AUTOLOCK int(10) NOT NULL DEFAULT '0'
+ ttlock_devices: PASSAGE_SHED varchar(1024) NOT NULL DEFAULT ''
  ttlock_devices: LOG text NOT NULL DEFAULT ''
  ttlock_info: ID int(10) unsigned NOT NULL auto_increment
  ttlock_info: DEVICE_ID int(10) NOT NULL DEFAULT '0'
@@ -480,16 +520,50 @@ function send($device, $action, $data = ""){ //1 - получение токен
 	return $data;
 }
 
-function receive($data){
+ function receive($data){
 	if(!isset($data['records'])){
-		$this->WriteLog("Получены нестандартные данные:".$data);
+		$this->WriteLog("Получены нестандартные данные:");
+		$this->WriteLog($data);
 		return;
 	}
+	require(dirname(__FILE__).'/ttlock_recordtype.inc.php');
 	$records = json_decode($data['records'], true)[0];
 	$device = SQLSelectOne('SELECT * FROM ttlock_devices WHERE LOCK_ID="'.$records['lockId'].'"');
 	if($device['ID']){
 		$info = SQLSelect("SELECT * FROM ttlock_info WHERE DEVICE_ID='".$device['ID']."'");
 		foreach($info as $inf){
+			if($inf['TITLE'] == 'status'){ //замок не передает событие атоматического запирания, поэтому будем вычислять состояние замка логически$passage = 0;
+				if(in_array($records['recordTypeFromLock'], $lockedLock) and in_array($records['recordType'], $lockedCloud))
+					$status = 1;
+				else if(in_array($records['recordTypeFromLock'], $unlockedLock) and in_array($records['recordType'], $unlockedCloud)){
+					$status = 0;
+					if($device['PASSAGE'] == 1){ //если есть настроенный и включенный свободный проход
+						$passage_shedule = json_decode($device['PASSAGE_SHED'], true);
+						if(in_array(date('N'), $passage_shedule['weekDays'])){
+							if($passage_shedule['isAllDay'] == 1) //весь день
+								$passage = 1;
+							else{ //попадаем ли в расписание
+								$start_time = mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['startTime']*60;
+								$end_time = mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['endTime']*60;
+								if(date("U") > $start_time and date("U") < $end_time) $passage = 1;
+								else $passage = 0;
+							}
+						}
+					}
+				} else continue;
+				if(!$status and !$passage){
+					$str = "callAPI('/api/module/ttlock','GET',array('id'=>".$device['ID'].",'action'=>'updateStatus','data'=>'1'));";
+					setTimeOut($device['TITLE']." lockStatus", $str, $device['AUTOLOCK']);
+				}
+				if(isset($status)){
+					$params['OLD_VALUE'] = $inf['VALUE'];
+					$params['NEW_VALUE'] = $status;
+					$this->setProperty($inf, $status, $params);
+					$inf['VALUE'] = $status;
+					$inf['UPDATED'] = date('Y-m-d H:i:s');
+					SQLUpdate('ttlock_info', $inf);
+				}
+			}
 			if($inf['TITLE'] == 'electricQuantity'){
 				if(isset($records['electricQuantity'])){
 					if($inf['VALUE'] != $records['electricQuantity']){
@@ -514,19 +588,52 @@ function receive($data){
 				}
 			}
 		}
-		require(dirname(__FILE__).'/ttlock_recordtype.inc.php');
-		$key = $records['keyboardPwd'] != "" ? ". Код доступа: ".$records['keyboardPwd'] : "";
-		$device['LOG'] = date('Y-m-d H:i:s')." ".$recordTypeFromLock[$records['recordTypeFromLock']].". Пользователь: ".$records['username'].$key."\n".$device['LOG'];
+		$key = empty($records['keyboardPwd']) ? "" : ". Код доступа: ".$records['keyboardPwd'];
+		$user = empty($records['username']) ? "" : ". Пользователь: ".$records['username'];
+		$device['LOG'] = date('Y-m-d H:i:s')." ".$recordTypeFromLock[$records['recordTypeFromLock']].$user."\n".$device['LOG'];
 		if(substr_count($device['LOG'], "\n") > 30){ //очищаем самые давние события, если их более 30
 			$device['LOG'] = substr($device['LOG'], 0, strrpos(trim($device['LOG']), "\n"));
 		}
 		SQLUpdate('ttlock_devices', $device);
 	}
-}
+ }
 
-function WriteLog($msg){
+ function update($lock){
+	$this->getConfig();
+	$device=SQLSelectOne("SELECT * FROM ttlock_devices WHERE LOCK_ID='".$lock['LOCK_ID']."'");
+	$device['CLIENT_ID'] = $this->config['CLIENT_ID'];
+	$device['CLIENT_SECRET'] = $this->config['CLIENT_SECRET'];
+	$device['TOKEN'] = $this->config['TOKEN'];
+	$datalock = $this->send($device, 3);
+	if($datalock){
+		if(isset($datalock['errcode'])){
+			return $datalock['errmsg'];
+		} else {
+			$device['TITLE'] = $datalock['lockAlias'];
+			$device['MODEL'] = $datalock['modelNum'];
+			$device['LOCK_ID'] = $datalock['lockId'];
+			$device['MAC'] = $datalock['lockMac'];
+			$device['BAT'] = $datalock['electricQuantity'];
+			$device['GATE'] = $datalock['hasGateway'];
+			$device['AUTOLOCK'] = $datalock['autoLockTime'];
+			if($datalock['passageMode'] == 1){
+				$device['PASSAGE'] = 1;
+				$passage_shedule = $this->send($device, 7);
+				$device['PASSAGE_SHED'] = json_encode($passage_shedule['cyclicConfig'][0]);
+			} else $device['PASSAGE'] = 0;
+			unset($device['CLIENT_ID']);
+			unset($device['CLIENT_SECRET']);
+			unset($device['TOKEN']);
+			$this->WriteLog($device);
+			SQLUpdate('ttlock_devices', $device);
+			return true;
+		}
+	} else return "Нет ответа от сервера.";
+ }
+
+ function WriteLog($msg){
      if ($this->debug) {
         DebMes($msg, $this->name);
      }
-  }
+ }
 }

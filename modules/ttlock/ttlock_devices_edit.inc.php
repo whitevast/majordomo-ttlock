@@ -8,44 +8,39 @@
   $table_name='ttlock_devices';
   $rec=SQLSelectOne("SELECT * FROM $table_name WHERE ID='$id'");
   if ($this->mode=='update') {
-	$ok = 1;
 	if($this->tab=='') {
-		$lock['CLIENT_ID'] = $this->config['CLIENT_ID'];
-		$lock['TOKEN'] = $this->config['TOKEN'];
-		$lock['LOCK_ID'] = $rec['LOCK_ID'];
-		$datalock = $this->send($lock, 3);
-		if($datalock){
-			if(isset($data['errcode'])){
-				$out['ERR'] = $data['errmsg'];
-				$ok = 0;
-			} else {
-				$rec['TITLE'] = $datalock['lockAlias'];
-				$rec['MODEL'] = $datalock['modelNum'];
-				$rec['LOCK_ID'] = $datalock['lockId'];
-				$rec['MAC'] = $datalock['lockMac'];
-				$rec['BAT'] = $datalock['electricQuantity'];
-				$rec['GATE'] = $datalock['hasGateway'];
-			}
-		} else{
-			$out['ERR'] = "Нет ответа от сервера.";
+		$datalock = $this->update($rec);
+		if($datalock !== true){
+			$out['ERR'] = $datalock;
 			$ok = 0;
 		}
+		else $out['OK']=1;
 	}
 	// step: data
-	if ($this->tab=='data') {
-	}
 	//UPDATING RECORD
-	if ($ok) {
-		if (isset($rec['ID'])) {
-		SQLUpdate($table_name, $rec); // update
-		} else {
-			$new_rec=1;
-			$rec['ID']=SQLInsert($table_name, $rec); // adding new record
-		}
-		$out['OK']=1;
-	}
   }
   // Вкладка Информация
+  if ($this->tab=='') {
+	  $passage = "";
+	  $passage_shedule = json_decode($rec['PASSAGE_SHED'], true);
+	  foreach($passage_shedule['weekDays'] as $day){
+		  if($day == 1) $passage = $passage."Пн ";
+		  else if($day == 2) $passage = $passage."Вт ";
+		  else if($day == 3) $passage = $passage."Ср ";
+		  else if($day == 4) $passage = $passage."Чт ";
+		  else if($day == 5) $passage = $passage."Пт ";
+		  else if($day == 6) $passage = $passage."Сб ";
+		  else if($day == 7) $passage = $passage."Вс ";
+	  }
+	  if($passage_shedule['isAllDay'] == 1) $passage = $passage."Весь день";
+	  else{
+		  $passage = $passage."с ";
+		  $start_time = date('H:i', mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['startTime']*60);
+		  $end_time = date('H:i', mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['endTime']*60);
+		  $out['PASS_SHED'] = $passage.$start_time." до ".$end_time;
+	  }
+  }
+  
   // Вкладка Данные
   if ($this->tab=='data') {
    //dataset2
