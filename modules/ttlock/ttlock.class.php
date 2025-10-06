@@ -170,7 +170,7 @@ function admin(&$out) {
 						$device['AUTOLOCK'] = $datalock['autoLockTime'];
 						if($datalock['passageMode'] == 1){
 							$device['PASSAGE'] = 1;
-							$device['PASSAGE_SHED'] = json_encode($this->send($lock, 7))['cyclicCinfig'][0];
+							$device['PASSAGE_SHED'] = json_encode($this->send($lock, 7))['cyclicConfig'][0];
 						} else $device['PASSAGE'] = 0;
 					}
 				} else $out['ERR'] = "Нет ответа от сервера.";
@@ -469,7 +469,7 @@ EOD;
 
 /////////////////////////My_functions//////////////////////////////////
 
-function send($device, $action, $data = ""){ //1 - получение токена, 2 - запрос информации о замках, 3 - расширенная информация о замке 4 - запереть, 5 - отпереть, 6 - информация о состоянии замка, 7 - запрос информации о сободном проходе, 8 - настроить расписание свободного прохода
+function send($device, $action, $data = ""){ //1 - получение токена, 2 - запрос информации о замках, 3 - расширенная информация о замке 4 - запереть, 5 - отпереть, 6 - информация о состоянии замка, 7 - запрос информации о сободном проходе, 8 - настроить расписание свободного прохода, 9 - обновление токена с помощью refresh
 	$api = "https://euapi.ttlock.com/v3/lock/";
 	$date = time()."000";
 	if($action != 1) $lockdata = "clientId=".$device['CLIENT_ID']."&accessToken=".$device['TOKEN']."&lockId=".$device['LOCK_ID']."&date=$date";
@@ -501,6 +501,12 @@ function send($device, $action, $data = ""){ //1 - получение токен
 		case 8:
 			$ip = $api."configurePassageMode";
 			$post = "clientId=".$device['CLIENT_ID']."&accessToken=".$device['TOKEN']."&lockId=".$device['LOCK_ID']."&passageMode=1&cyclicConfig=[{'isAllDay':2,'startTime':1020,'endTime':1320,'weekDays':[6,7]}]&type=2&date=$date";
+			break;
+		case 9:
+			$this->getConfig();
+			$ip = "https://euapi.ttlock.com/oauth2/token";
+			$post = "clientId=".$device['CLIENT_ID']."&clientSecret=".$this->config['CLIENT_SECRET']."&grant_type=refresh_token&refresh_token=".$this->config['REFRESH_TOKEN'];
+			break;
 		
 	}
 	$ch = curl_init();
@@ -517,6 +523,17 @@ function send($device, $action, $data = ""){ //1 - получение токен
 	if(isset($html)) $data = json_decode($html, true);
 	else $data = false;
 	curl_close($ch);
+	if($data['errcode'] != 0){
+		if($data['errcode'] == 10004 or $data['errcode'] == 10003){
+			$data = $this->send($device, 9);
+			$this->config['TOKEN'] = $data['access_token'];
+			$this->saveConfig();
+			$device['TOKEN'] = $data['access_token'];
+			$this->send($device, $action, $data);
+		} else {
+			$this->WriteLog($data);
+		}
+	}
 	return $data;
 }
 
@@ -532,37 +549,25 @@ function send($device, $action, $data = ""){ //1 - получение токен
 	if($device['ID']){
 		$info = SQLSelect("SELECT * FROM ttlock_info WHERE DEVICE_ID='".$device['ID']."'");
 		foreach($info as $inf){
-			if($inf['TITLE'] == 'status'){ //замок не передает событие атоматического запирания, поэтому будем вычислять состояние замка логически$passage = 0;
+			if($inf['TITLE'] == 'status'){ //замок не передает событие атоматического запирания, поэтому будем вычислять состояние замка логически
 				if(in_array($records['recordTypeFromLock'], $lockedLock) and in_array($records['recordType'], $lockedCloud))
 					$status = 1;
 				else if(in_array($records['recordTypeFromLock'], $unlockedLock) and in_array($records['recordType'], $unlockedCloud)){
 					$status = 0;
 					if($device['PASSAGE'] == 1){ //если есть настроенный и включенный свободный проход
-						$passage_shedule = json_decode($device['PASSAGE_SHED'], true);
-						if(in_array(date('N'), $passage_shedule['weekDays'])){
-							if($passage_shedule['isAllDay'] == 1) //весь день
-								$passage = 1;
-							else{ //попадаем ли в расписание
-								$start_time = mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['startTime']*60;
-								$end_time = mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['endTime']*60;
-								if(date("U") > $start_time and date("U") < $end_time) $passage = 1;
-								else $passage = 0;
-							}
-						}
+						$passage = $this->chekPassage($device['PASSAGE_SHED']);
 					}
 				} else continue;
 				if(!$status and !$passage){
 					$str = "callAPI('/api/module/ttlock','GET',array('id'=>".$device['ID'].",'action'=>'updateStatus','data'=>'1'));";
 					setTimeOut($device['TITLE']." lockStatus", $str, $device['AUTOLOCK']);
 				}
-				if(isset($status)){
-					$params['OLD_VALUE'] = $inf['VALUE'];
-					$params['NEW_VALUE'] = $status;
-					$this->setProperty($inf, $status, $params);
-					$inf['VALUE'] = $status;
-					$inf['UPDATED'] = date('Y-m-d H:i:s');
-					SQLUpdate('ttlock_info', $inf);
-				}
+				$params['OLD_VALUE'] = $inf['VALUE'];
+				$params['NEW_VALUE'] = $status;
+				$this->setProperty($inf, $status, $params);
+				$inf['VALUE'] = $status;
+				$inf['UPDATED'] = date('Y-m-d H:i:s');
+				SQLUpdate('ttlock_info', $inf);
 			}
 			if($inf['TITLE'] == 'electricQuantity'){
 				if(isset($records['electricQuantity'])){
@@ -629,6 +634,18 @@ function send($device, $action, $data = ""){ //1 - получение токен
 			return true;
 		}
 	} else return "Нет ответа от сервера.";
+ }
+ 
+ function chekPassage($shedule){
+	$passage_shedule = json_decode($shedule, true);
+	if(in_array(date('N'), $passage_shedule['weekDays'])){ //проверяем день недели
+		if($passage_shedule['isAllDay'] == 1) return true; //весь день
+		//попадаем ли в расписание
+		$start_time = mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['startTime']*60;
+		$end_time = mktime(0, 0, 0, date("m"), date("d"), date("Y")) + $passage_shedule['endTime']*60;
+		if(date("U") > $start_time and date("U") < $end_time) return true;
+		else return false;
+	}
  }
 
  function WriteLog($msg){

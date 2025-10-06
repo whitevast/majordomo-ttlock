@@ -20,6 +20,7 @@
   <td><b><#LANG_LINKED_OBJECT#></b></td>
   <td><b><#LANG_LINKED_PROPERTY#></b></td>
   <td valign="top"><b><#LANG_UPDATED#></b></td>
+  <td>&nbsp;</td>
  </tr>
  [#begin COMMANDS#]
  <tr>
@@ -29,6 +30,7 @@
   <td valign="top"><input type="text" name="linked_property[#ID#]" id="linked_property[#ID#]" value="[#LINKED_PROPERTY#]"></td>
   [#module name="linkedobject" object_field="linked_object<#COMMANDS.ID#>" property_field="linked_property<#COMMANDS.ID#>" method_field="linked_method<#COMMANDS.ID#>" width="200"#]
   <td valign="top">[#UPDATED#]</td>
+  <td valign="top"><a href="?data_source=<#DATA_SOURCE#>&view_mode=edit_ttlock_devices&id=[#ID#]&tab=commands&mode=switch" class="btn btn-default" title="Переключить"><i class="glyphicon glyphicon-flash"></i></a></td>
   </tr>
  [#end COMMANDS#]
 </table> 
